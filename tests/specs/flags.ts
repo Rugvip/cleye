@@ -377,6 +377,132 @@ export default testSuite(({ describe }) => {
 			});
 		});
 
+		describe('--no- prefix', ({ test }) => {
+			test('negates a boolean flag', () => {
+				const parsed = cli(
+					{
+						flags: {
+							verbose: Boolean,
+						},
+					},
+					undefined,
+					['--no-verbose'],
+				);
+				expect(parsed.flags.verbose).toBe(false);
+			});
+
+			test('last-wins when negation is last', () => {
+				const parsed = cli(
+					{
+						flags: {
+							verbose: Boolean,
+						},
+					},
+					undefined,
+					['--verbose', '--no-verbose'],
+				);
+				expect(parsed.flags.verbose).toBe(false);
+			});
+
+			test('last-wins when positive is last', () => {
+				const parsed = cli(
+					{
+						flags: {
+							verbose: Boolean,
+						},
+					},
+					undefined,
+					['--no-verbose', '--verbose'],
+				);
+				expect(parsed.flags.verbose).toBe(true);
+			});
+
+			test('array boolean flag', () => {
+				const parsed = cli(
+					{
+						flags: {
+							verbose: [Boolean],
+						},
+					},
+					undefined,
+					['--verbose', '--no-verbose', '--verbose'],
+				);
+				if (parsed.command === undefined) {
+					expect<boolean[]>(parsed.flags.verbose).toStrictEqual([true, false, true]);
+				}
+			});
+
+			test('non-boolean flag stays untouched', () => {
+				const parsed = cli(
+					{
+						flags: {
+							count: Number,
+						},
+					},
+					undefined,
+					['--no-count'],
+				);
+				expect(parsed.flags.count).toBe(undefined);
+				expect(parsed.unknownFlags['no-count']).toEqual([true]);
+			});
+
+			test('unregistered flag stays in unknownFlags', () => {
+				const parsed = cli(
+					{},
+					undefined,
+					['--no-unknown'],
+				);
+				expect(parsed.unknownFlags['no-unknown']).toEqual([true]);
+			});
+
+			test('kebab-case flag name', () => {
+				const parsed = cli(
+					{
+						flags: {
+							someFlag: Boolean,
+						},
+					},
+					undefined,
+					['--no-some-flag'],
+				);
+				expect(parsed.flags.someFlag).toBe(false);
+			});
+
+			test('argv is mutated to replace --no- form', () => {
+				const argv = ['--no-verbose'];
+				cli(
+					{
+						flags: {
+							verbose: Boolean,
+						},
+						ignoreArgv() {
+							return true;
+						},
+					},
+					undefined,
+					argv,
+				);
+				// preprocessNegatedFlags replaces --no-verbose in-place
+				expect(argv[0]).toBe('--verbose=false');
+			});
+
+			test('object-form boolean flag', () => {
+				const parsed = cli(
+					{
+						flags: {
+							verbose: {
+								type: Boolean,
+								description: 'Enable verbose output',
+							},
+						},
+					},
+					undefined,
+					['--no-verbose'],
+				);
+				expect(parsed.flags.verbose).toBe(false);
+			});
+		});
+
 		describe('strictFlags', ({ test }) => {
 			test('errors on unknown flag', () => {
 				const mocked = mockEnvFunctions();
@@ -530,6 +656,44 @@ export default testSuite(({ describe }) => {
 				mocked.restore();
 
 				expect(mocked.consoleError.calls[0][0]).toContain('--verbose');
+			});
+
+			test('--no- prefix does not error for boolean flag', () => {
+				const mocked = mockEnvFunctions();
+				const parsed = cli(
+					{
+						flags: {
+							verbose: Boolean,
+						},
+						strictFlags: true,
+					},
+					undefined,
+					['--no-verbose'],
+				);
+				mocked.restore();
+
+				expect(mocked.consoleError.called).toBe(false);
+				expect(mocked.processExit.called).toBe(false);
+				expect(parsed.flags.verbose).toBe(false);
+			});
+
+			test('--no- prefix errors for non-boolean flag', () => {
+				const mocked = mockEnvFunctions();
+				cli(
+					{
+						flags: {
+							count: Number,
+						},
+						strictFlags: true,
+					},
+					undefined,
+					['--no-count'],
+				);
+				mocked.restore();
+
+				expect(mocked.consoleError.called).toBe(true);
+				expect(mocked.consoleError.calls[0][0]).toContain('Unknown flag');
+				expect(mocked.processExit.calls).toStrictEqual([[1]]);
 			});
 		});
 	});

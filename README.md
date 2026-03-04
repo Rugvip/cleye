@@ -263,8 +263,34 @@ argv.flags.someString // => "hello" (string)
 argv.flags.someNumber // => [1, 2] (number[])
 ```
 
-#### Inverting boolean flags
-To explicitly set a boolean flag to `false`, pass in the value using the `=` operator:
+#### Negating boolean flags
+Boolean flags can be negated using the `--no-` prefix:
+
+```sh
+$ my-script --no-some-boolean
+# argv.flags.someBoolean => false
+```
+
+When both forms are used, last-wins semantics apply:
+
+```sh
+$ my-script --some-boolean --no-some-boolean
+# argv.flags.someBoolean => false
+
+$ my-script --no-some-boolean --some-boolean
+# argv.flags.someBoolean => true
+```
+
+For array boolean flags (`[Boolean]`), each `--no-` flag pushes `false` into the array:
+
+```sh
+$ my-script --some-boolean --no-some-boolean --some-boolean
+# argv.flags.someBoolean => [true, false, true]
+```
+
+The `--no-` prefix only works for registered `Boolean` flags. Using it with non-boolean or unregistered flags will treat it as an unknown flag.
+
+You can also set a boolean flag to `false` using the `=` operator:
 
 ```sh
 $ my-script --some-boolean=false

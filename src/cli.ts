@@ -13,10 +13,48 @@ import type {
 } from './types';
 import type { Command } from './command';
 import { generateHelp, Renderers } from './render-help';
-import { camelCase } from './utils/convert-case';
+import { camelCase, kebabCase } from './utils/convert-case';
 import { isValidScriptName } from './utils/script-name';
 
 const { stringify } = JSON;
+
+function getBooleanFlagKebabNames(flags: Record<string, unknown>): Set<string> {
+	const names = new Set<string>();
+	for (const [name, flagDef] of Object.entries(flags)) {
+		const flagType =
+			typeof flagDef === 'function'
+				? flagDef
+				: Array.isArray(flagDef)
+					? flagDef[0]
+					: (flagDef as { type: unknown }).type;
+
+		if (
+			flagType === Boolean
+			|| (Array.isArray(flagType) && flagType[0] === Boolean)
+		) {
+			names.add(kebabCase(name));
+		}
+	}
+	return names;
+}
+
+function preprocessNegatedFlags(
+	argv: string[],
+	booleanFlags: Set<string>,
+): void {
+	for (let i = 0; i < argv.length; i += 1) {
+		const arg = argv[i];
+
+		if (!arg.startsWith('--no-') || arg.indexOf('=') !== -1) {
+			continue;
+		}
+
+		const positiveName = arg.slice(5);
+		if (positiveName.length > 0 && booleanFlags.has(positiveName)) {
+			argv[i] = `--${positiveName}=false`;
+		}
+	}
+}
 
 const specialCharactersPattern = /[|\\{}()[\]^$+*?.]/;
 
@@ -196,6 +234,8 @@ function cliBase<
 			description: 'Show help',
 		};
 	}
+
+	preprocessNegatedFlags(argv, getBooleanFlagKebabNames(flags));
 
 	const parsed = typeFlag(
 		flags,
